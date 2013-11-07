@@ -1,0 +1,827 @@
+<!DOCTYPE html> 
+<html>
+<head>
+	<title>Leaflet debug page</title>
+
+	<link rel="stylesheet" href="../../dist/leaflet.css" />
+	<!--[if lte IE 8]><link rel="stylesheet" href="../../dist/leaflet.ie.css" /><![endif]-->
+
+	<link rel="stylesheet" href="../css/screen.css" />
+
+	<style>
+		#map {
+			width: 100%;
+			height:100%;
+			position:absolute;
+		}
+		
+		#button {
+			width: 800px;
+			height:50px;
+			position:absolute;
+			bottom: -20px;
+			left: 20px;
+		}
+
+		.info {
+			padding: 6px 8px;
+			font: 14px/16px Arial, Helvetica, sans-serif;
+			background: white;
+			background: rgba(255,255,255,0.8);
+			box-shadow: 0 0 15px rgba(0,0,0,0.2);
+			border-radius: 5px;
+		}
+		.info h4 {
+			margin: 0 0 5px;
+			color: #777;
+		}
+
+		.legend {
+			text-align: left;
+			line-height: 18px;
+			color: #555;
+		}
+		.legend i {
+			width: 18px;
+			height:15px;
+			float: left;
+			margin-right: 8px;
+			opacity: 0.7;
+		}
+	</style>
+
+	<script src="../leaflet-include.js"></script>
+</head>
+<body>
+
+	<div id="map"></div>
+		<div id="button">	
+                    <input id='refine_button' type='button' value='Per Income Capita_25' onClick="mile25()">
+                    <input id='refine_button' type='button' value='Per Income Capita_100' onClick="mile100()">
+                    <input id='refine_button' type='button' value='Per Income Capita_200' onClick="mile200()">
+                    <input id='refine_button' type='button' value='Per Income Capita' onClick="style2()">	
+		</div>						
+
+	<script type="text/javascript" src="cali.js"></script>
+	<script type="text/javascript" src="CA100m.js"></script>
+	<script type="text/javascript" src="CA200m.js"></script>	
+	<script type="text/javascript" src="CA_all.js"></script>	
+	<script type="text/javascript">
+	
+		var geojson;
+		var info;
+		var legend;
+
+		var map = L.map('map').setView([37.746, -122.338], 11);
+
+		var cloudmade = L.tileLayer('http://{s}.tile.cloudmade.com/{key}/{styleId}/256/{z}/{x}/{y}.png', {
+			//attribution: 'Map data &copy; 2011 OpenStreetMap contributors, Imagery &copy; 2011 CloudMade',
+			key: 'BC9A493B41014CAABB98F0471D759707',
+			styleId: 998
+		}).addTo(map);
+
+		
+		remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Per Capita Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.income + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 94913  ? '#800026' :
+			       d > 81354   ? '#BD0026' :
+			       d > 67795   ? '#E31A1C' :
+			       d > 54236   ? '#FC4E2A' :
+			       d > 40677    ? '#FD8D3C' :
+			       d > 27118    ? '#FEB24C' :
+			       d >  13559    ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function getColor2(d) {
+			return d > 340938  ? '#800026' :
+			       d > 292090   ? '#BD0026' :
+			       d > 243242   ? '#E31A1C' :
+			       d > 194394   ? '#FC4E2A' :
+			       d > 145545    ? '#FD8D3C' :
+			       d > 96697    ? '#FEB24C' :
+			       d >    47849    ? '#FED976' :
+			                  '#FFEDA0';
+		}		
+
+		function style1(feature) {
+			return {
+				weight: 0,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor1(feature.properties.income)
+			};
+		}
+
+		function style2(feature) {
+			return {
+				weight: 0,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor2(feature.properties.HC01_VC86)
+			};
+		}		
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 3,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(CA_all, {
+			style: style1,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 13559    , 27118    , 40677    , 54236   , 67795   , 81354   , 94913  ],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);		
+////////////////////////////////////////////////////////////////////////////////////////////////////		
+		
+function remove(){
+	if(geojson != null){
+                
+                map.removeLayer(geojson);
+				geojson.clearLayers();
+	}
+	
+	if(info != null){
+                info.removeFrom(map);
+                //map.removeLayer(geojson);
+				//geojson.clearLayers();
+	}
+
+	if(legend != null){
+                legend.removeFrom(map);
+                //map.removeLayer(geojson);
+				//geojson.clearLayers();
+	}	
+	
+}
+
+		function styleRemove(feature) {
+			return {
+				//weight: 2,
+				opacity: 0,
+				color: 'white',
+				//dashArray: '3',
+				fillOpacity: 0,
+				fillColor: 'white'
+			};
+		}
+		
+
+function mile25(){
+		remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Per Capita Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.income + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 94913  ? '#800026' :
+			       d > 81354   ? '#BD0026' :
+			       d > 67795   ? '#E31A1C' :
+			       d > 54236   ? '#FC4E2A' :
+			       d > 40677    ? '#FD8D3C' :
+			       d > 27118    ? '#FEB24C' :
+			       d >  13559    ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function getColor2(d) {
+			return d > 340938  ? '#800026' :
+			       d > 292090   ? '#BD0026' :
+			       d > 243242   ? '#E31A1C' :
+			       d > 194394   ? '#FC4E2A' :
+			       d > 145545    ? '#FD8D3C' :
+			       d > 96697    ? '#FEB24C' :
+			       d >    47849    ? '#FED976' :
+			                  '#FFEDA0';
+		}		
+
+		function style1(feature) {
+			return {
+				weight: 2,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor1(feature.properties.income)
+			};
+		}
+
+		function style2(feature) {
+			return {
+				weight: 2,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor2(feature.properties.HC01_VC86)
+			};
+		}		
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 5,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(statesData, {
+			style: style1,
+			onEachFeature: onEachFeature,
+			unloadInvisibleTiles:false
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 13559    , 27118    , 40677    , 54236   , 67795   , 81354   , 94913  ],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+}
+
+
+function mile100(){
+		remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Per Capita Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.income + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 94913  ? '#800026' :
+			       d > 81354   ? '#BD0026' :
+			       d > 67795   ? '#E31A1C' :
+			       d > 54236   ? '#FC4E2A' :
+			       d > 40677    ? '#FD8D3C' :
+			       d > 27118    ? '#FEB24C' :
+			       d >  13559    ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function getColor2(d) {
+			return d > 340938  ? '#800026' :
+			       d > 292090   ? '#BD0026' :
+			       d > 243242   ? '#E31A1C' :
+			       d > 194394   ? '#FC4E2A' :
+			       d > 145545    ? '#FD8D3C' :
+			       d > 96697    ? '#FEB24C' :
+			       d >    47849    ? '#FED976' :
+			                  '#FFEDA0';
+		}		
+
+		function style1(feature) {
+			return {
+				weight: 1,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor1(feature.properties.income)
+			};
+		}
+
+		function style2(feature) {
+			return {
+				weight: 1,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor2(feature.properties.HC01_VC86)
+			};
+		}		
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 5,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(CA100mile, {
+			style: style1,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 13559    , 27118    , 40677    , 54236   , 67795   , 81354   , 94913  ],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+}
+
+function mile200(){
+		remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Per Capita Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.income + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 94913  ? '#800026' :
+			       d > 81354   ? '#BD0026' :
+			       d > 67795   ? '#E31A1C' :
+			       d > 54236   ? '#FC4E2A' :
+			       d > 40677    ? '#FD8D3C' :
+			       d > 27118    ? '#FEB24C' :
+			       d >  13559    ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function getColor2(d) {
+			return d > 340938  ? '#800026' :
+			       d > 292090   ? '#BD0026' :
+			       d > 243242   ? '#E31A1C' :
+			       d > 194394   ? '#FC4E2A' :
+			       d > 145545    ? '#FD8D3C' :
+			       d > 96697    ? '#FEB24C' :
+			       d >    47849    ? '#FED976' :
+			                  '#FFEDA0';
+		}		
+
+		function style1(feature) {
+			return {
+				weight: 0.5,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				//fillColor: getColor1(feature.properties.income)
+				fillColor: "#1B1"
+			};
+		}
+
+		function style2(feature) {
+			return {
+				weight: 0.5,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor2(feature.properties.HC01_VC86)
+			};
+		}		
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 5,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(CA200mile, {
+			style: style1,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 13559    , 27118    , 40677    , 54236   , 67795   , 81354   , 94913  ],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+}
+
+function style2(){
+		remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Per Capita Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.income + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 94913  ? '#800026' :
+			       d > 81354   ? '#BD0026' :
+			       d > 67795   ? '#E31A1C' :
+			       d > 54236   ? '#FC4E2A' :
+			       d > 40677    ? '#FD8D3C' :
+			       d > 27118    ? '#FEB24C' :
+			       d >  13559    ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function getColor2(d) {
+			return d > 340938  ? '#800026' :
+			       d > 292090   ? '#BD0026' :
+			       d > 243242   ? '#E31A1C' :
+			       d > 194394   ? '#FC4E2A' :
+			       d > 145545    ? '#FD8D3C' :
+			       d > 96697    ? '#FEB24C' :
+			       d >    47849    ? '#FED976' :
+			                  '#FFEDA0';
+		}		
+
+		function style1(feature) {
+			return {
+				weight: 0,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor1(feature.properties.income)
+			};
+		}
+
+		function style2(feature) {
+			return {
+				weight: 0,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor2(feature.properties.HC01_VC86)
+			};
+		}		
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 3,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(CA_all, {
+			style: style1,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 13559    , 27118    , 40677    , 54236   , 67795   , 81354   , 94913  ],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+}
+
+    map.on('zoomend', function(e) {
+
+            if (map.getZoom() >= 10) {
+                    mile25();
+                    
+            }
+            else if (map.getZoom() >= 9 && map.getZoom() <= 9) {
+                    mile100();
+                    
+            }			
+            else if (map.getZoom() >= 8 && map.getZoom() <= 8) {
+					mile200();
+                    
+            }
+            else if (map.getZoom() <= 7) {
+					style2();
+                    
+            }			
+            });
+
+
+	</script>
+</body>
+</html>

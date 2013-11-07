@@ -1,0 +1,387 @@
+<!DOCTYPE html> 
+<html>
+<head>
+	<title>Leaflet debug page</title>
+
+	<link rel="stylesheet" href="../../dist/leaflet.css" />
+	<!--[if lte IE 8]><link rel="stylesheet" href="../../dist/leaflet.ie.css" /><![endif]-->
+
+	<link rel="stylesheet" href="../css/screen.css" />
+
+	<style>
+		#map {
+			width: 800px;
+			height: 500px;
+		}
+
+		.info {
+			padding: 6px 8px;
+			font: 14px/16px Arial, Helvetica, sans-serif;
+			background: white;
+			background: rgba(255,255,255,0.8);
+			box-shadow: 0 0 15px rgba(0,0,0,0.2);
+			border-radius: 5px;
+		}
+		.info h4 {
+			margin: 0 0 5px;
+			color: #777;
+		}
+
+		.legend {
+			text-align: left;
+			line-height: 18px;
+			color: #555;
+		}
+		.legend i {
+			width: 18px;
+			height:15px;
+			float: left;
+			margin-right: 8px;
+			opacity: 0.7;
+		}
+	</style>
+
+	<script src="../leaflet-include.js"></script>
+</head>
+<body>
+
+
+<div id="menu" style="background-color:#ffffff;height:30px;width:510px;float:left;">
+    <form action="">
+		<span id="layer_change">Select Layer: </span>
+        <select name="ACSdata" onChange="layerChange('')">
+			<option value="HC02_VC04">Population 16 years and over</option>
+			<option value="HC01_VC20">Own children under 6 years</option>
+			<option value="HC01_VC21">All parents in family in labor force</option>
+			<option value="HC01_VC23">Own children 6 to 17 years</option>
+			<option value="HC01_VC28">Workers 16 years and over</option>
+			<option value="HC01_VC74">Total households</option>
+			<option value="HC01_VC85">Median household income</option>
+			<option value="HC01_VC86">Mean household income</option>
+			<option value="HC01_VC112">Median family income</option>
+			<option value="HC01_VC113">Mean family income</option>
+			<option value="HC01_VC115">Per capita income</option>		
+        </select>
+    </form>
+</div>
+
+<div id="content" style="background-color:#ffffff;height:30px;width:300px;float:left;">	
+    <form action="">
+		<span id="class_change">Select Classification: </span>
+        <select name="class" onChange="layerClass('')">
+			<option value="equal">Equal Classification</option>
+			<option value="quantile">Quantile Classification</option>	
+        </select>
+    </form>	
+</div>	
+    
+</br>
+	<div id="map"></div>
+                 		
+    <input id='refine_button' type='button' value='Per Income Capita' onClick="Per_Income_Capita()">
+    &nbsp&nbsp&nbsp&nbsp
+    <input id='somParm_button' type='button' value='Median Houshold Income' onClick="Median_Houshold_Income()">	
+	
+
+	<script type="text/javascript" src="CA_ACS11.js"></script>
+	<script type="text/javascript">
+	
+		var geojson;
+		var info;
+		var legend;
+
+		var map = L.map('map').setView([37.746, -122.338], 10);
+
+		var cloudmade = L.tileLayer('http://{s}.tile.cloudmade.com/{key}/{styleId}/256/{z}/{x}/{y}.png', {
+			//attribution: 'Map data &copy; 2011 OpenStreetMap contributors, Imagery &copy; 2011 CloudMade',
+			key: 'BC9A493B41014CAABB98F0471D759707',
+			styleId: 998
+		}).addTo(map);
+/*
+		var layersControl = new L.Control.Layers({
+			'CloudMade': cloudmade
+		}, {
+			//'Some marker': marker,
+			//'vector layer': geojson
+		});	
+*/
+		map.addControl(layersControl);		
+
+
+
+		
+function remove(){
+	if(geojson != null){
+                
+                map.removeLayer(geojson);
+				geojson.clearLayers();
+	}
+	
+	if(info != null){
+                info.removeFrom(map);
+                //map.removeLayer(geojson);
+				//geojson.clearLayers();
+	}
+
+	if(legend != null){
+                legend.removeFrom(map);
+                //map.removeLayer(geojson);
+				//geojson.clearLayers();
+	}	
+	
+}
+
+		function styleRemove(feature) {
+			return {
+				//weight: 2,
+				opacity: 0,
+				color: 'white',
+				//dashArray: '3',
+				fillOpacity: 0,
+				fillColor: 'white'
+			};
+		}
+		
+
+function Per_Income_Capita(){
+		remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Per Capita Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.HC01_VC115 + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 94913  ? '#800026' :
+			       d > 81354   ? '#BD0026' :
+			       d > 67795   ? '#E31A1C' :
+			       d > 54236   ? '#FC4E2A' :
+			       d > 40677    ? '#FD8D3C' :
+			       d > 27118    ? '#FEB24C' :
+			       d >  13559    ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function style1(feature) {
+			return {
+				weight: 2,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.5,
+				fillColor: getColor1(feature.properties.HC01_VC115)
+			};
+		}
+
+		
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 5,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(CA, {
+			style: style1,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 13559    , 27118    , 40677    , 54236   , 67795   , 81354   , 94913  ],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+}
+
+
+function Median_Houshold_Income(){
+
+	    remove();
+		// control that shows state info on hover
+		 info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			this._div.innerHTML = '<h4>Median Household Income</h4>' +  (props ?
+				'<b>'  + '</b>' + '$' + props.HC01_VC85 + '<br/><br/>'
+				+'<h4>Zip Code (area)</h4>'
+				+ props.NAME
+				: 'Hover over an area');
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor1(d) {
+			return d > 209594  ? '#800026' :
+			       d > 178355  ? '#BD0026' :
+			       d > 147116  ? '#E31A1C' :
+			       d > 115876  ? '#FC4E2A' :
+			       d > 84637  ? '#FD8D3C' :
+			       d > 53398  ? '#FEB24C' :
+			       d > 22159  ? '#FED976' :
+			                  '#FFEDA0';
+		}
+		
+		function style1(feature) {
+			return {
+				weight: 2,
+				opacity: 1,
+				color: 'white',
+				dashArray: '3',
+				fillOpacity: 0.6,
+				fillColor: getColor1(feature.properties.HC01_VC85)
+			};
+		}
+
+	
+		
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 5,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		//var geojson;
+
+		function resetHighlight(e) {
+			geojson.resetStyle(e.target);
+			info.update();
+		}
+
+		function zoomToFeature(e) {
+			map.fitBounds(e.target.getBounds());
+		}
+
+		function onEachFeature(feature, layer) {
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomToFeature
+				//click: highlightFeature
+			});
+		}
+
+		geojson = L.geoJson(CA, {
+			style: style1,
+			onEachFeature: onEachFeature
+		}).addTo(map);
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+
+		 legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+		
+			
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 22159, 53398, 84637 , 115876, 147116, 178355, 209594],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor1(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+			
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+}
+
+
+	</script>
+</body>
+</html>
